@@ -6,6 +6,14 @@
 
 **由 Hainan Yuandou Technology Co. Ltd. 开发**
 
+<p align="center">
+  <img src="assets/jimeng-resolve-icon.png" alt="Jimeng to Resolve: a continuous film ribbon connecting three sculptural shot frames" width="520">
+</p>
+
+**Keep every shot connected—from the first idea to the editing timeline.**
+
+[Product overview (English)](docs/product-overview.en.md) · [英文产品介绍](docs/product-overview.en.md)
+
 [English](#english) · [简体中文](#chinese)
 
 ---
@@ -166,6 +174,11 @@ jimeng-resolve-workflow/
 ├── README.md
 ├── SKILL.md                         # Codex workflow entry point
 ├── .gitignore
+├── assets/
+│   ├── jimeng-resolve-icon.png       # Product handbook-style icon
+│   └── icon-prompt.md                # Design brief and generation prompt
+├── docs/
+│   └── product-overview.en.md        # English product introduction
 ├── agents/
 │   └── openai.yaml                  # Skill display name, description, and default invocation prompt
 ├── references/
@@ -636,6 +649,11 @@ jimeng-resolve-workflow/
 ├── README.md
 ├── SKILL.md                         # Codex 工作流入口
 ├── .gitignore
+├── assets/
+│   ├── jimeng-resolve-icon.png       # 与产品手册匹配的图标
+│   └── icon-prompt.md                # 设计说明与生成提示词
+├── docs/
+│   └── product-overview.en.md        # 英文产品介绍
 ├── agents/
 │   └── openai.yaml                  # 技能显示名称、简介与默认调用提示
 ├── references/

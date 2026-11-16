@@ -1,0 +1,4 @@
+interface:
+  display_name: "即梦到达芬奇视频工作流"
+  short_description: "用 Codex 准备镜头和图片，衔接即梦视频、4K30 素材处理与达芬奇剪辑导出"
+  default_prompt: "使用 $jimeng-resolve-workflow，按我的主题或预设提示词开始制作，或从项目目录继续当前阶段。"

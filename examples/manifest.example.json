@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "title": "雨夜书店",
+  "orientation": "landscape",
+  "target": {
+    "width": 3840,
+    "height": 2160,
+    "fps": 30
+  },
+  "duration_seconds": 10,
+  "language": "zh",
+  "master_prompt": "制作一段约10秒的雨夜书店短片。保持同一间书店的建筑、门窗、暖色灯光和雨夜色调连续。先表现街边外景，再进入书店内部。此文件仅为计划示例，尚未生成图片、视频或声音。",
+  "shots": [
+    {
+      "shot_id": "S001",
+      "duration_seconds": 5,
+      "voiceover": "雨落在街角，书店的灯还亮着。",
+      "image_prompt": "雨夜，街角一间木框玻璃门的小书店，暖黄色灯光透过窗户照在湿润路面上，视线平齐的中景，蓝灰色环境与温暖室内形成柔和对比，无可读招牌文字。",
+      "video_prompt": "基于参考图，镜头沿湿润街面缓慢向书店推近，雨滴连续落下，窗内灯光保持稳定，门窗结构不变化，结尾停在门前。",
+      "image": "",
+      "raw_video": "",
+      "processed_video": "",
+      "status": "planned",
+      "quality_notes": "尚未生成素材；后续检查书店外观、灯光和第二镜头的一致性。"
+    },
+    {
+      "shot_id": "S002",
+      "duration_seconds": 5,
+      "voiceover": "推门进去，让这一页慢一点翻过。",
+      "image_prompt": "同一间书店内部，从木框玻璃门内侧望向温暖书架，一张木桌上摊开一本书，窗外可见雨夜，延续第一镜头的暖黄灯光和蓝灰窗景，画面中不出现清晰可读文字。",
+      "video_prompt": "基于参考图，镜头从门内缓慢移向木桌上的书，窗外雨滴持续，灯光和书架结构稳定，动作轻缓，结尾停留在书页上。",
+      "image": "",
+      "raw_video": "",
+      "processed_video": "",
+      "status": "planned",
+      "quality_notes": "尚未生成素材；后续检查书页运动、室内结构和镜头衔接。"
+    }
+  ]
+}

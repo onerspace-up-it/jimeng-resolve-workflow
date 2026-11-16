@@ -1,6 +1,488 @@
-# 即梦 → 达芬奇：可续接制作 Skill
+# Jimeng → DaVinci Resolve · 即梦 → 达芬奇
 
-# 由 Hainan Yuandou Technology Co. Ltd. 开发
+**Resumable Production Skill · 可续接制作 Skill**
+
+# Developed by Hainan Yuandou Technology Co. Ltd.
+
+**由 Hainan Yuandou Technology Co. Ltd. 开发**
+
+[English](#english) · [简体中文](#chinese)
+
+---
+
+<a id="english"></a>
+
+## English documentation
+
+**Use Codex to organize content and shots, Jimeng to generate video, local scripts to prepare editing media, and DaVinci Resolve to complete post-production.**
+
+`jimeng-resolve-workflow` is a video production skill for Codex. It includes workflow instructions, creative references, and two Python command-line tools. It connects the topic, narration, prompts, images, video versions, processing records, and editing order so production can proceed in stages and resume from an existing project after an interruption.
+
+The project focuses on organizing media, recording progress, and providing reliable handoffs across tools. Project initialization, media inspection, 4K ProRes transcoding, and versioned handoff packages are implemented. Content creation relies on Codex's capabilities; Jimeng generation and DaVinci Resolve editing rely on the corresponding external tools and actual operations.
+
+> The current implementation does not include a Jimeng API client, an automated generation queue, an AI super-resolution model, a Resolve project writer, or a YouTube uploader. The full pipeline from generation to a finished video still requires acceptance testing with a real project.
+
+### Project background
+
+The project began with a video production flowchart on **October 11, 2026**, and was implemented as a reusable Codex Skill.
+
+Common difficulties in video projects that span multiple tools include:
+
+- Scripts, images, and videos are stored in different places, making it difficult to identify the prompt behind a particular clip.
+- Multiple versions of the same shot are generated, making it easy to select the wrong media for later processing.
+- Switching chats or pausing work requires explaining the topic, shot order, and current progress again.
+- A video exported at 4K and 30fps may still have distorted subjects, incorrect composition, or motion problems.
+- Once the original clips have been processed, an editor may still lack an editing order, narration, and an explanation of missing media.
+
+This project reduces those handoff costs through stable shot IDs, an editable `manifest.json`, processing that preserves the original clips, and a separate directory for each handoff.
+
+### Use cases
+
+- Producing AI short films shot by shot from a topic, script, or reference images.
+- Preparing media for landscape YouTube videos or portrait short videos.
+- Converting clips already downloaded from Jimeng into a consistent format suitable for post-production.
+- Working on the same project across multiple sessions and regenerating only missing or unsuitable shots.
+- Handing content plans and processed media to a DaVinci Resolve editor.
+
+You can run only one stage of the workflow. For example, you can organize the shot list, inspect downloaded media, or generate a new editing handoff package.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    A[Topic, preset prompts, and references] --> B[Codex: narration, shot list, image and video prompts]
+    B --> C[Reference images and per-shot generation list]
+    C --> D[Jimeng: generate and download video]
+    D --> E[Review original clips and select versions]
+    E -->|Content accepted| F[Inspect, transcode, and validate output]
+    E -->|Regeneration needed| C
+    F --> G[4K ProRes media and processing records]
+    G --> H[Versioned editing handoff package]
+    H --> I[DaVinci Resolve: edit, grade, add voiceover, and export]
+    I --> J[Review the finished video and revise publishing copy]
+    M[manifest.json: shot IDs, order, and selected media] -.-> B
+    M -.-> E
+    M -.-> H
+```
+
+#### 1. Content planning and image preparation
+
+Codex develops continuous narration from the topic and references, then breaks the narrative into shots. Each shot records:
+
+- Image prompt: the subject, setting, lighting, shot size, and composition of a specific moment.
+- Video prompt: the action, camera movement, environmental changes, and start and end states based on the reference image.
+- Narration and planned duration: a basis for later voiceover and editing.
+- Actual media paths: an image is recorded as available only after it has been generated.
+
+Selected references maintain continuity in characters, clothing, settings, and visual style. The skill also calls for `brief/youtube-copy.txt`, containing title candidates, a description, tags, and thumbnail suggestions. Final chapter timestamps must come from the actual editing timeline.
+
+Codex creates these outputs by following the skill instructions. The two Python scripts do not generate copy or images themselves.
+
+#### 2. Jimeng generation and original-clip archiving
+
+Provide a reference image, video prompt, and desired duration for each shot ID. Users can generate clips on the Jimeng website, or Codex can assist when the necessary tools and authorization are available.
+
+Save downloaded originals in `raw/` and write their actual paths back to `manifest.json`. Record task submission, prompt completion, file download, and visual review as separate states.
+
+The first review primarily checks subjects, actions, camera movement, continuity, and distortion. Return unsuitable clips to the generation stage.
+
+#### 3. Local media inspection and conversion
+
+`prepare_media.py` uses FFprobe to read media information, then FFmpeg to convert selected clips into editing media.
+
+The defaults are landscape `3840×2160`, exact `30fps`, and MOV / ProRes 422. Portrait output is `2160×3840`; ProRes 422 HQ is also available.
+
+The script preserves the original input and produces both a video and a JSON record. The record includes input properties, processing methods, the command, output properties, and technical validation results.
+
+#### 4. Generate a DaVinci Resolve handoff package
+
+`project.py handoff` generates an editing order table, narration text, media list, and import instructions in the array order of `manifest.shots`.
+
+Each run creates a separate `resolve/handoff-NNN/` directory. Existing packages remain available for comparing versions and retaining editing plans already delivered.
+
+#### 5. DaVinci Resolve post-production and final review
+
+Use the actual media and voiceover in DaVinci Resolve to complete editing, color grading, subtitles, mixing, and export. Set the project's timeline dimensions and frame rate before importing media, then adjust the pacing to the actual narration duration.
+
+Final completion is determined by the actual exported file. Successful media conversion and successful handoff generation each indicate completion of their respective stage only.
+
+### Implemented capabilities
+
+| Module | Current capability | Execution method |
+| --- | --- | --- |
+| Project initialization | Creates seven working directories and a manifest with an empty shot list; refuses to overwrite an existing manifest | `project.py init` |
+| Shot organization | Stable IDs, editable order, prompts, narration, and paths to selected versions | Manifest maintained by Codex or manually |
+| Media inspection | Dimensions, duration, frame-rate tags, SAR, rotation, color tags, audio streams, and HDR indicators | `prepare_media.py inspect` |
+| Frame fitting | Landscape or portrait 4K; preserve the full frame with padding, or center-crop to fill | orientation / fit parameters of `convert` |
+| Frame-rate processing | Frame duplication or dropping by default; optional motion-compensated interpolation | cadence / interpolate |
+| Intermediate encoding | ProRes 422 / 422 HQ, 10-bit 4:2:2; audio converted to PCM 48kHz | FFmpeg transcoding |
+| Output validation | Checks parameters, duration, audio streams, frame intervals, and full decoding | Runs automatically after transcoding |
+| Processing records | A JSON file named after the output MOV, containing processing methods and validation results | Generated automatically after transcoding |
+| Editing handoff | Accumulates timing in shot-array order and outputs four handoff files | `project.py handoff` |
+| Resuming and regenerating | Reuses the manifest and selected media; new versions use new filenames | Workflow conventions and manual/Codex operations |
+
+### Core design
+
+#### Connect the entire pipeline with shot IDs
+
+IDs such as `S001` and `S002` remain stable across prompts, images, original clips, and processed clips. When regenerating a shot, change the version number while preserving the shot identity:
+
+```text
+images/S001_v01.png
+raw/S001_v01.mp4
+raw/S001_v02.mp4
+processed/S001_v02.mov
+processed/S001_v02.mov.json
+```
+
+The manifest points to the currently selected version; other candidates can remain in the directory. To change the shot order, move entries within the `shots` array without renaming all the media.
+
+#### Store resumable state in project files
+
+When resuming work, read the project settings, shot entries, and actual files to identify completed work and remaining tasks. The project does not need to depend entirely on the context of a particular chat.
+
+The current implementation uses explicit records: the transcoding script does not update the manifest automatically, and there is no background synchronization, task queue, or automatic resume scheduler. After files are generated, the caller must write back the selected paths and check the content.
+
+#### Preserve original clips and previous handoff versions
+
+Initialization refuses to overwrite an existing manifest. Transcoding refuses to overwrite an existing MOV or its matching JSON. Each handoff uses a newly numbered directory.
+
+Transcoding writes to a temporary file first and publishes the final output after technical checks pass. If publishing the processing record fails, it rolls back the video file newly generated by that run. Publication uses hard links within the same filesystem, so the target filesystem must support that operation.
+
+#### Separate three levels of checks
+
+| Check level | What it determines | Implementation |
+| --- | --- | --- |
+| File completeness | Whether a file is inside the project, nonempty, and has a supported extension | `project.py` |
+| Technical media checks | Whether media can be decoded and whether dimensions, frame rate, duration, and audio streams meet the conversion requirements | `prepare_media.py` |
+| Content and visual checks | Whether subjects are correct, actions are plausible, transitions are natural, and subtitles and audio are usable | Reviewing clips and the finished video |
+
+`ready: true` in `handoff.json` **only means that every shot has a processed video that passes the file checks**. It does not prove that the files can be decoded, meet 4K30 specifications, have acceptable image quality, or have been imported into DaVinci Resolve. Manually setting `status: "done"` does not change that determination.
+
+### Repository structure
+
+```text
+jimeng-resolve-workflow/
+├── README.md
+├── SKILL.md                         # Codex workflow entry point
+├── .gitignore
+├── agents/
+│   └── openai.yaml                  # Skill display name, description, and default invocation prompt
+├── references/
+│   ├── creative.md                  # Narrative, shot planning, prompts, and publishing copy
+│   └── media-and-resolve.md         # Media processing, quality assessment, and editing handoff
+├── scripts/
+│   ├── project.py                   # Project initialization and versioned handoff
+│   └── prepare_media.py             # Media inspection, transcoding, and output validation
+└── examples/
+    └── manifest.example.json        # Two-shot structure example with no generated media
+```
+
+Video projects are stored separately from the skill code. An initialized project has the following structure:
+
+```text
+my-video-project/
+├── manifest.json
+├── brief/                          # Creative requirements, script, and publishing copy
+├── images/                         # Reference images and selected images
+├── raw/                            # Original downloaded clips
+├── processed/                      # Editing media and processing records
+├── audio/                          # Actual voiceover and music files
+├── resolve/                        # Versioned handoff packages
+└── export/                         # Final exported files
+```
+
+### Requirements and installation
+
+| Dependency | Purpose |
+| --- | --- |
+| Python 3.9+ | Runs the two scripts, which use only the Python standard library |
+| FFmpeg and FFprobe | Media inspection, conversion, and validation |
+| A Codex environment that supports loading this Skill | Organizes content and advances the workflow according to the skill |
+| A Jimeng account with available generation capabilities | External video generation stage |
+| DaVinci Resolve | Post-production editing and final export stage |
+
+The project's historical validation environment was macOS. This repository does not provide compatibility test conclusions for Windows, Linux, or different filesystems.
+
+The FFmpeg build must provide the `prores_ks` encoder and the relevant filters. Optical-flow interpolation also requires `minterpolate`. The repository does not bundle FFmpeg, DaVinci Resolve, generation models, or third-party account credentials.
+
+After downloading or cloning the repository, check these commands from its root directory:
+
+```bash
+python3 --version
+ffmpeg -version
+ffprobe -version
+python3 scripts/project.py --help
+python3 scripts/prepare_media.py --help
+```
+
+In environments that use `~/.codex/skills/` as the skill directory, place the complete repository folder at `~/.codex/skills/jimeng-resolve-workflow/`. If a skill with the same name already exists, inspect the existing version first and preserve any local changes you need. After reloading skills, invoke it with:
+
+```text
+$jimeng-resolve-workflow
+```
+
+The actual discovery location depends on the current Codex environment. Even without installing it as a Skill, you can run the two Python tools independently from the repository directory.
+
+### Quick start: a two-shot example
+
+This example plans a 10-second short film set in a bookstore on a rainy night. The example manifest contains only a plan: image and video paths are empty, and no generated outputs are included.
+
+#### 1. Initialize the project
+
+Run from the repository root:
+
+```bash
+python3 scripts/project.py init "./projects/rainy-bookstore" \
+  --title "雨夜书店" \
+  --orientation landscape \
+  --duration 10 \
+  --language zh
+```
+
+For this newly created demonstration project, copy the example as the shot plan:
+
+```bash
+cp examples/manifest.example.json projects/rainy-bookstore/manifest.json
+```
+
+The example uses two 5-second shots: first establish the bookstore exterior on a rainy night, then move inside. For actual production, adjust the timing to the real voiceover and generation results.
+
+#### 2. Start creating in Codex
+
+```text
+Use $jimeng-resolve-workflow.
+
+Continue the project at ./projects/rainy-bookstore.
+The topic is a bookstore on a rainy night, in landscape format,
+with Chinese narration and a target duration of approximately 10 seconds.
+Read the manifest and retain the two shot IDs and visual settings.
+Create reference images and a copyable Jimeng video generation list.
+Maintain continuity in the same bookstore's doors, windows, lighting, and colors.
+Write media paths only after the files have actually been generated,
+and keep unfinished stages marked as unfinished.
+```
+
+#### 3. Generate and record original clips
+
+Use the reference images and corresponding video prompts in Jimeng to generate clips, then review them and select versions. Place the downloaded files at:
+
+```text
+projects/rainy-bookstore/raw/S001_v01.mp4
+projects/rainy-bookstore/raw/S002_v01.mp4
+```
+
+Set each shot's `image` and `raw_video` to actual paths relative to the project, such as `raw/S001_v01.mp4`. If only prompts exist, leave the image and video fields empty.
+
+#### 4. Inspect and process a representative clip
+
+```bash
+python3 scripts/prepare_media.py inspect \
+  "./projects/rainy-bookstore/raw/S001_v01.mp4"
+
+python3 scripts/prepare_media.py convert \
+  "./projects/rainy-bookstore/raw/S001_v01.mp4" \
+  "./projects/rainy-bookstore/processed/S001_v01.mov" \
+  --orientation landscape \
+  --fps 30 \
+  --frame-policy cadence \
+  --fit contain \
+  --profile 422
+```
+
+On success, the output consists of `S001_v01.mov` and `S001_v01.mov.json`. Watch the output and check composition, action, audio, and differences from the original before processing the second shot.
+
+Set the processed shot's `processed_video` to `processed/S001_v01.mov`, and do the same for the second shot. To record processing methods, you can add `enhancement_method` and `quality_notes`; these extension fields are maintained by the caller.
+
+#### 5. Generate the handoff package
+
+```bash
+python3 scripts/project.py handoff "./projects/rainy-bookstore"
+```
+
+Output structure:
+
+```text
+resolve/handoff-001/
+├── edit-plan.csv
+├── narration.txt
+├── handoff.json
+└── import-notes.txt
+```
+
+You can also run this command before clips have been downloaded or processed to see what is missing. A successfully generated report returns exit code `0`, even when `ready` is `false`. Read the JSON content to determine whether the media is complete.
+
+#### 6. Complete post-production in DaVinci Resolve
+
+Read the import instructions and set the timeline to landscape `3840×2160` at exact `30fps`. Import the reviewed processed clips and build the timeline according to the editing table. Then adjust shot lengths to the actual voiceover, complete post-production, and export.
+
+The CSV is an editing plan. The repository does not currently create a `.drp` project automatically or place media on a Resolve timeline.
+
+### Manifest reference
+
+See [examples/manifest.example.json](examples/manifest.example.json) for a complete example.
+
+| Field | Meaning and convention |
+| --- | --- |
+| `version` | The current format version is the integer `1` |
+| `title` | Project name |
+| `orientation` | `landscape` or `portrait` |
+| `target` | Landscape 3840×2160 or portrait 2160×3840; the handoff tool requires 30fps |
+| `duration_seconds` | Planned project duration; must be a finite positive number |
+| `language` | Language of narration and copy |
+| `master_prompt` | Overall creative requirements for the project |
+| `shots` | Shot array; array order determines editing order |
+| `shot_id` | A stable ID in the form `S001`; duplicates are not allowed |
+| `shots[].duration_seconds` | Planned shot duration; must be a finite positive number |
+| `voiceover` | Narration text for the shot |
+| `image_prompt` / `video_prompt` | Static-image and motion descriptions |
+| `image` / `raw_video` / `processed_video` | Currently selected media; leave empty until generated |
+| `status` | A descriptive stage record maintained by a person or Codex, not a basis for automatic acceptance |
+
+If the sum of planned shot durations differs from the project duration, the handoff records the difference and still generates the editing order from the shot durations. It does not stretch video or correct narration automatically.
+
+Paths relative to the project are recommended. The handoff script also accepts absolute paths that remain inside the project after resolution, but rejects media paths and symbolic links that escape the project directory. It does not fully validate the semantics of images, prompts, or extension status fields.
+
+### Commands and parameters
+
+#### `project.py`
+
+```bash
+python3 scripts/project.py init PROJECT --title TITLE \
+  [--orientation landscape|portrait] [--duration SECONDS] [--language zh]
+
+python3 scripts/project.py handoff PROJECT
+```
+
+`init` defaults to landscape, 60 seconds, and Chinese, and creates an empty `shots` array. A project with no shots cannot generate a handoff package.
+
+`handoff` prefers each shot's `processed_video`. If the processed clip is unavailable, it falls back to the original and marks it `needs_processing`. If neither exists, it marks the shot `missing_video`. Nonempty files may have the extensions `.mp4`, `.mov`, `.mxf`, `.mkv`, `.avi`, `.m4v`, or `.webm`. This extension check does not validate the file contents.
+
+#### `prepare_media.py`
+
+```bash
+python3 scripts/prepare_media.py inspect INPUT
+
+python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
+  [--orientation landscape|portrait] \
+  [--fps 30] \
+  [--frame-policy cadence|interpolate] \
+  [--fit contain|cover] \
+  [--profile 422|hq]
+```
+
+| Parameter | Default | Behavior |
+| --- | --- | --- |
+| `--orientation` | `landscape` | Selects a landscape or portrait 4K canvas |
+| `--fps` | `30` | The conversion command accepts frame rates greater than 0 and up to 120; this workflow's handoff uses a fixed 30 |
+| `--frame-policy` | `cadence` | Duplicates/drops frames; `interpolate` uses motion-compensated interpolation |
+| `--fit` | `contain` | Preserves the full frame with black padding; `cover` center-crops to fill |
+| `--profile` | `422` | ProRes 422; `hq` selects ProRes 422 HQ |
+| `--ffmpeg` / `--ffprobe` | Commands of the same name on PATH | Allows explicit tool paths |
+
+The output directory must already exist, and the output extension must be `.mov`. If a video or `.mov.json` with the same name already exists, use a new filename such as `v02`.
+
+### Media-processing technical details
+
+- **Video-stream selection:** Processes the first non-cover-art video stream. Other video streams are excluded from the output, and the relevant indices are saved in the processing record.
+- **Display aspect ratio:** Handles rotation metadata and non-square pixels, normalizes the pixel aspect ratio to 1:1, then fits the target canvas.
+- **Scaling:** Uses Lanczos resampling. 4K output describes the canvas dimensions; it does not mean native 4K detail has been recovered. See the [FFmpeg Scaler documentation](https://ffmpeg.org/ffmpeg-scaler.html).
+- **Frame rate:** Uses `fps` to duplicate or drop frames by default. Optional `minterpolate` provides motion-compensated interpolation, with tail padding and trimming back to the source duration to reduce filter truncation. Optical-flow output still requires visual review. See the [fps documentation](https://ffmpeg.org/ffmpeg-filters.html#fps) and [minterpolate documentation](https://ffmpeg.org/ffmpeg-filters.html#minterpolate).
+- **Color:** Preserves existing color-primaries, transfer-function, and matrix tags without guessing unknown tags. Input explicitly tagged as full-range `pc` is mapped to ProRes video range `tv`. Conversion is refused when PQ, HLG, or related HDR metadata is detected; such media requires an explicit color-management workflow.
+- **Encoding:** Outputs `prores_ks` and `yuv422p10le`, producing 10-bit 4:2:2 ProRes intermediate media. Converting an 8-bit source to 10-bit encoding does not add information to the source. See the [FFmpeg ProRes documentation](https://ffmpeg.org/ffmpeg-codecs.html#ProRes).
+- **Audio streams:** Preserves all input audio streams, converts them to PCM 16-bit / 48kHz, and checks the stream and channel counts.
+- **Validation:** Checks output dimensions, codec, pixel format, frame-rate tags, duration changes, and known color tags; scans output packet timestamps to verify constant frame intervals; and finally decodes the complete output video and audio.
+
+The input's `avg_frame_rate` and `r_frame_rate` are stream metadata only. `inspect` does not scan all input frame timestamps, so it marks whether the input is VFR as `not_determined`. After conversion, the output's actual packet intervals are checked.
+
+Visual review is still required after technical checks pass, particularly for fast motion, occlusion, faces, cuts, audio/video synchronization, and continuity between shots.
+
+### Handoff package and processing records
+
+| File | Contents |
+| --- | --- |
+| `edit-plan.csv` | Shot IDs, planned in/out points in seconds, local media paths, narration, and status notes; UTF-8 BOM helps spreadsheet applications read it |
+| `narration.txt` | Numbered narration in editing order |
+| `handoff.json` | Target specifications, total planned duration, preset duration, file-completeness results, unready shots, and output paths |
+| `import-notes.txt` | DaVinci Resolve import steps and notes on unfinished work |
+| `OUTPUT.mov.json` | Source-media information, processing parameters, the FFmpeg command, output information, and technical validation results |
+
+The handoff package includes absolute media paths from the current machine, and processing records also contain local input and output locations. After moving a project to another computer, correct the media locations in the manifest and regenerate the handoff. Publishing the source code does not require including private video projects or their processing records.
+
+### Resuming a project
+
+```text
+Use $jimeng-resolve-workflow to resume ./projects/rainy-bookstore.
+
+Read the manifest and preserve the selected reference images and shot order.
+Check the actual downloaded clips in raw and the existing conversion outputs in processed.
+Process only missing or unsuitable shots; complete and review one representative clip first.
+Output landscape 4K30 ProRes and record the processing methods actually used.
+Update the selected media paths, then generate a new DaVinci Resolve handoff package.
+```
+
+To regenerate a single shot, specify it explicitly:
+
+```text
+Regenerate S002 only. Preserve S001 and the currently selected versions.
+Use v02 for the new media, and update the selected path in the manifest only after review passes.
+Preserve the previous handoff directory and generate the next version of the handoff package.
+```
+
+### Development and validation status
+
+| Date | Record |
+| --- | --- |
+| 2026-10-11 | Chose a reusable Codex Skill based on the workflow diagram, completed the skill instructions, two scripts, and reference documents, and installed it in the local skill directory |
+| 2026-10-11 | Development records reported landscape and portrait 4K30 ProRes short-clip conversion, audio preservation, frame inspection of padding, and tonal-range checks; a planning trial for a “45-second rainy-night bookstore” explicitly left images and videos still to be generated |
+| 2026-10-18 / 19 | Included in the local knowledge base and subsequent project production guide; teaching cards in the knowledge base are not evidence of successful execution |
+| 2026-11-16 | Prepared GitHub documentation against the existing source code and added a manifest example without media; checked the CLI, example initialization, and handoff behavior with missing media |
+
+The historical development records explicitly retained this boundary: **end-to-end acceptance testing of a real production project, from Jimeng generation through final DaVinci Resolve export, has not been completed.** This documentation work did not rerun external video generation or produce a finished video.
+
+The repository currently has no continuous integration or complete automated test suite, and historical test media is not distributed with it. Implemented capabilities can be checked against the code. Historical short-clip test reports and actual results in future users' environments should be assessed separately.
+
+### Known limitations and possible extensions
+
+#### Current limitations
+
+- Jimeng website operations depend on currently available browser tools and a logged-in session; the repository does not include a fixed browser-automation script.
+- API integration is an optional future path. Model selection, generation submission, polling, and downloading are not built in.
+- No AI super-resolution engine is included. Ordinary scaling, frame-rate normalization, and optical-flow interpolation each serve a distinct purpose.
+- HDR conversion is outside the scope of the current processing script; media without color tags still requires human judgment.
+- The processing script does not choose versions for users or write back to the manifest automatically.
+- The handoff script does not check whether source clips are long enough for their planned durations, nor does it handle transitions, overlapping edits, or an audio timeline.
+- Narration text is not a voice file. Voiceover, music, subtitles, and finished-video acceptance must actually be completed.
+- Only local media files can enter the current handoff workflow; cloud project synchronization is not implemented.
+
+#### Possible development directions
+
+The following are proposed extensions and have not been implemented:
+
+- Add an explicit manifest schema, field validation, and tools for writing processing results back to the manifest.
+- Add a generation queue with retries, failure recovery, and explicit cost limits.
+- Integrate a selected official Jimeng API while retaining the mapping from tasks to shots.
+- Integrate an available super-resolution engine and retain before/after comparisons and human quality-review results.
+- Generate an importable timeline format or use the Resolve scripting interface to build a rough cut.
+- Use actual voiceover durations to help adjust the shot plan, and add subtitle and audio-track management.
+- Add synthetic test media, automated regression checks, and cross-platform validation.
+- Use a complete real project to validate consistency across generation, selection, transcoding, editing, export, and publishing copy.
+
+### Contributing and publication notes
+
+When reporting a problem, provide the command used, Python / FFmpeg versions, reproducible media properties, and the error message. For transcoding issues, describe orientation, frame-rate policy, fitting mode, color tags, and audio-stream details. Check processing records for local paths before sharing them.
+
+Changes should preserve the relationship between shot IDs and versions and clearly state which stage was validated. When adding support for an external platform, distinguish tool capabilities, user-account requirements, and stages that remain unverified.
+
+The current release package does not include a `LICENSE`, and no open-source license has been selected. The repository maintainer may add a license file according to their publishing intentions.
+
+[简体中文 ↓](#chinese)
+
+---
+
+<a id="chinese"></a>
+
+## 中文说明
 
 **用 Codex 组织内容与镜头，用即梦生成视频，用本地脚本准备剪辑素材，再交给 DaVinci Resolve 完成后期。**
 
@@ -10,7 +492,7 @@
 
 > 当前实现未内置即梦 API 客户端、自动生成队列、AI 超分模型、Resolve 工程写入器或 YouTube 上传器。完整真实项目的生成到成片链路，仍需要另行验收。
 
-## 项目背景
+### 项目背景
 
 项目于 **2026 年 10 月 11 日**从一张视频制作流程图出发，最终选择以可重复调用的 Codex Skill 实现。
 
@@ -24,7 +506,7 @@
 
 本项目通过稳定的镜头编号、可编辑的 `manifest.json`、保留原片的处理方式，以及每次独立生成的交接目录，降低这些衔接成本。
 
-## 适用场景
+### 适用场景
 
 - 根据主题、脚本或参考图，逐镜头制作 AI 短片。
 - 制作 YouTube 横屏视频或竖屏短视频素材。
@@ -34,7 +516,7 @@
 
 同一条流程可以只执行其中一个阶段。例如，仅整理分镜、仅检查下载素材，或者仅生成新的剪辑交接包。
 
-## 工作流
+### 工作流
 
 ```mermaid
 flowchart TD
@@ -53,7 +535,7 @@ flowchart TD
     M -.-> H
 ```
 
-### 1. 内容策划与图像准备
+#### 1. 内容策划与图像准备
 
 Codex 根据主题和参考组织连续的旁白，再将叙事拆成镜头。每个镜头分别记录：
 
@@ -66,7 +548,7 @@ Codex 根据主题和参考组织连续的旁白，再将叙事拆成镜头。�
 
 上述创作产物由 Codex 按技能说明制作，两个 Python 脚本不会自行生成文案或图片。
 
-### 2. 即梦生成与原片归档
+#### 2. 即梦生成与原片归档
 
 按镜头编号提供参考图、视频提示词和期望时长。用户可在即梦网页完成生成，也可在具备相应工具与授权时由 Codex 协助操作。
 
@@ -74,7 +556,7 @@ Codex 根据主题和参考组织连续的旁白，再将叙事拆成镜头。�
 
 第一轮观看主要检查主体、动作、运镜、连续性和形变。不合格片段回到生成阶段重做。
 
-### 3. 本地素材检测与转换
+#### 3. 本地素材检测与转换
 
 `prepare_media.py` 使用 FFprobe 读取媒体信息，再用 FFmpeg 将选定片段转换成剪辑素材。
 
@@ -82,19 +564,19 @@ Codex 根据主题和参考组织连续的旁白，再将叙事拆成镜头。�
 
 脚本保留原始输入，处理完成后同时输出视频和 JSON 记录，记录输入属性、处理方法、命令、输出属性与技术验证结果。
 
-### 4. 生成达芬奇交接包
+#### 4. 生成达芬奇交接包
 
 `project.py handoff` 按 `manifest.shots` 的数组顺序生成剪辑顺序表、旁白文本、素材清单及导入说明。
 
 每次生成独立的 `resolve/handoff-NNN/`。已有交接包保留，方便比较前后版本，也方便保留已经交付的剪辑计划。
 
-### 5. 达芬奇后期与最终检查
+#### 5. 达芬奇后期与最终检查
 
 在达芬奇中根据实际素材和配音完成剪辑、调色、字幕、混音及导出。导入前设置项目对应的时间线尺寸和帧率，之后用真实旁白时长调整节奏。
 
 最终完成状态以实际导出的文件为依据。素材转换成功和交接包生成成功，各自只代表其阶段完成。
 
-## 已实现的能力
+### 已实现的能力
 
 | 模块 | 当前能力 | 执行方式 |
 | --- | --- | --- |
@@ -109,9 +591,9 @@ Codex 根据主题和参考组织连续的旁白，再将叙事拆成镜头。�
 | 剪辑交接 | 按镜头数组顺序累计时间，输出四份交接文件 | `project.py handoff` |
 | 续做与重做 | 复用 manifest 和已选素材；新版本使用新文件名 | 工作流约定与人工/Codex 操作 |
 
-## 核心设计
+### 核心设计
 
-### 用镜头编号连接整条链路
+#### 用镜头编号连接整条链路
 
 `S001`、`S002` 等编号在提示词、图片、原片和处理片之间保持稳定。重做镜头时改变版本号，保留镜头身份：
 
@@ -125,19 +607,19 @@ processed/S001_v02.mov.json
 
 manifest 指向当前选中的版本；其他候选可以继续留在目录里。调整镜头顺序时移动 `shots` 数组中的条目，无需重命名全部素材。
 
-### 将可续做状态保存在项目文件中
+#### 将可续做状态保存在项目文件中
 
 续做时读取项目设定、镜头条目和实际文件，确定已经完成的工作及剩余事项。项目不需要完全依赖某次聊天中的上下文。
 
 当前实现采用显式记录：转码脚本不会自动更新 manifest，也没有后台同步、任务队列或自动断点调度。调用者需要在文件生成后写回选定路径，并核对内容。
 
-### 保留原片和旧交接版本
+#### 保留原片和旧交接版本
 
 初始化拒绝覆盖已有 manifest；转码拒绝覆盖已有 MOV 或同名 JSON；交接包采用新的编号目录。
 
 转码先写入临时文件，完成技术检查后再发布正式输出。若发布处理记录失败，会回滚本次新生成的视频文件。发布使用同文件系统硬链接，因此目标文件系统需要支持该操作。
 
-### 把三层检查分开
+#### 把三层检查分开
 
 | 检查层次 | 能判断的内容 | 实现位置 |
 | --- | --- | --- |
@@ -147,7 +629,7 @@ manifest 指向当前选中的版本；其他候选可以继续留在目录里�
 
 `handoff.json` 中的 `ready: true` **仅表示每个镜头都有通过文件检查的 processed 视频**。它没有证明文件可解码、达到 4K30、画质合格或已经导入达芬奇。手工填写 `status: "done"` 也不会改变这个判断。
 
-## 仓库结构
+### 仓库结构
 
 ```text
 jimeng-resolve-workflow/
@@ -180,7 +662,7 @@ my-video-project/
 └── export/                         # 最终导出文件
 ```
 
-## 环境要求与安装
+### 环境要求与安装
 
 | 依赖 | 用途 |
 | --- | --- |
@@ -212,11 +694,11 @@ $jimeng-resolve-workflow
 
 实际识别位置以当前 Codex 环境为准。未安装为 Skill 时，两个 Python 工具仍可从仓库目录独立运行。
 
-## 快速开始：两镜头示例
+### 快速开始：两镜头示例
 
 以下示例规划一段 10 秒的雨夜书店短片。示例 manifest 只包含计划；图片和视频路径为空，不包含生成成果。
 
-### 1. 初始化项目
+#### 1. 初始化项目
 
 在仓库根目录执行：
 
@@ -236,7 +718,7 @@ cp examples/manifest.example.json projects/rainy-bookstore/manifest.json
 
 示例安排两个 5 秒镜头：先建立雨夜书店外景，再进入书店内部。真实制作时，应根据实际配音和生成结果调整时间。
 
-### 2. 在 Codex 中开始创作
+#### 2. 在 Codex 中开始创作
 
 ```text
 使用 $jimeng-resolve-workflow。
@@ -249,7 +731,7 @@ cp examples/manifest.example.json projects/rainy-bookstore/manifest.json
 实际生成的素材再写入对应路径，保留未完成阶段。
 ```
 
-### 3. 生成并记录原片
+#### 3. 生成并记录原片
 
 在即梦使用参考图与对应的视频提示词生成片段，观看后选择版本。将下载文件放入：
 
@@ -260,7 +742,7 @@ projects/rainy-bookstore/raw/S002_v01.mp4
 
 把各镜头的 `image` 和 `raw_video` 改为真实的项目内相对路径，例如 `raw/S001_v01.mp4`。只有提示词时，图片和视频字段继续留空。
 
-### 4. 检查并处理代表片段
+#### 4. 检查并处理代表片段
 
 ```bash
 python3 scripts/prepare_media.py inspect \
@@ -280,7 +762,7 @@ python3 scripts/prepare_media.py convert \
 
 将已处理镜头的 `processed_video` 填为 `processed/S001_v01.mov`，第二个镜头同理。若需要记录处理方式，可以增加 `enhancement_method` 和 `quality_notes` 字段；这些扩展字段由调用者维护。
 
-### 5. 生成交接包
+#### 5. 生成交接包
 
 ```bash
 python3 scripts/project.py handoff "./projects/rainy-bookstore"
@@ -298,13 +780,13 @@ resolve/handoff-001/
 
 在没有下载或处理片段时，也可以使用这条命令查看缺失项。命令成功生成报告时返回退出码 `0`，即使 `ready` 为 `false`；需要判断素材是否齐备时应读取 JSON 内容。
 
-### 6. 在达芬奇完成后期
+#### 6. 在达芬奇完成后期
 
 阅读导入说明，将时间线设置为横屏 `3840×2160`、精确 `30fps`。导入已检查的处理片，按剪辑表搭建时间线，再以实际配音调整镜头长度，完成后期和导出。
 
 CSV 是剪辑计划；仓库当前不会自动创建 `.drp` 工程或将素材放入 Resolve 时间线。
 
-## Manifest 说明
+### Manifest 说明
 
 完整示例见 [examples/manifest.example.json](examples/manifest.example.json)。
 
@@ -329,9 +811,9 @@ CSV 是剪辑计划；仓库当前不会自动创建 `.drp` 工程或将素材�
 
 建议使用项目内相对路径。交接脚本也接受解析后仍位于项目内的绝对路径，但拒绝越出项目目录的素材路径和符号链接。图片、提示词及扩展状态字段不会被交接脚本做完整语义校验。
 
-## 命令与参数
+### 命令与参数
 
-### `project.py`
+#### `project.py`
 
 ```bash
 python3 scripts/project.py init PROJECT --title TITLE \
@@ -344,7 +826,7 @@ python3 scripts/project.py handoff PROJECT
 
 `handoff` 优先选择每个镜头的 `processed_video`；处理片不存在时回退到原片并标记 `needs_processing`；两者都不存在时标记 `missing_video`。非空文件的扩展名可为 `.mp4`、`.mov`、`.mxf`、`.mkv`、`.avi`、`.m4v` 或 `.webm`。这项扩展名检查不代表文件内容已验证。
 
-### `prepare_media.py`
+#### `prepare_media.py`
 
 ```bash
 python3 scripts/prepare_media.py inspect INPUT
@@ -368,7 +850,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 
 输出目录必须已经存在，输出扩展名必须为 `.mov`。同名视频或 `.mov.json` 已存在时，应改用 `v02` 等新文件名。
 
-## 媒体处理的技术细节
+### 媒体处理的技术细节
 
 - **视频流选择：**处理第一个非封面视频流，其他视频流不进入输出，相关索引记入处理记录。
 - **显示比例：**处理旋转信息与非方形像素，将像素宽高比规范为 1:1，再适配目标画布。
@@ -383,7 +865,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 
 技术检查通过仍需观看，尤其要核对快速运动、遮挡、脸部、剪切点、音画同步和镜头间连续性。
 
-## 交接包与处理记录
+### 交接包与处理记录
 
 | 文件 | 内容 |
 | --- | --- |
@@ -395,7 +877,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 
 交接包会写入当前机器的绝对素材路径，处理记录也包含本地输入、输出位置。项目换电脑后，先修正 manifest 中的素材位置并重新生成交接包。源码发布不需要包含私人视频项目或其处理记录。
 
-## 中途续做示例
+### 中途续做示例
 
 ```text
 使用 $jimeng-resolve-workflow 续做 ./projects/rainy-bookstore。
@@ -415,7 +897,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 保留旧交接目录，并生成下一版交接包。
 ```
 
-## 开发与验证情况
+### 开发与验证情况
 
 | 时间 | 记录 |
 | --- | --- |
@@ -428,9 +910,9 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 
 仓库当前没有持续集成或完整自动化测试套件，也没有随仓库发布历史测试媒体。已实现能力可以从代码核对；历史短片测试报告和未来使用者环境中的实际结果应分别判断。
 
-## 已知限制与扩展方向
+### 已知限制与扩展方向
 
-### 当前限制
+#### 当前限制
 
 - 即梦网页操作依赖当前可用的浏览器工具和已登录会话；仓库没有固定浏览器自动化脚本。
 - API 接入是后续可选路径，当前没有内置模型选择、生成提交、轮询和下载实现。
@@ -441,7 +923,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 - 旁白文本不等于语音文件；配音、音乐、字幕与成片验收需要实际完成。
 - 只有本机素材文件可进入当前交接流程，未实现云端项目同步。
 
-### 可继续开发的方向
+#### 可继续开发的方向
 
 以下为扩展建议，尚未实现：
 
@@ -454,7 +936,7 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 - 增加人工构造测试媒体、自动回归检查与多平台验证。
 - 用完整真实项目验证生成、筛选、转码、剪辑、导出和发布文案的一致性。
 
-## 协作与发布说明
+### 协作与发布说明
 
 反馈问题时，可提供执行命令、Python / FFmpeg 版本、可复现的媒体属性和错误信息。涉及转码异常时，应说明横竖屏、帧率策略、适配方式、色彩标签及音轨情况；分享处理记录前检查其中的本机路径。
 
@@ -462,3 +944,4 @@ python3 scripts/prepare_media.py convert INPUT OUTPUT.mov \
 
 当前发布包未附 `LICENSE`，未选择开源许可证。仓库维护者可按自己的发布意图补充许可文件。
 
+[English ↑](#english)

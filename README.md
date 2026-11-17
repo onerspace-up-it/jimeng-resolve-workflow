@@ -2,9 +2,9 @@
 
 **Resumable Production Skill · 可续接制作 Skill**
 
-# Developed by Hainan Yuandou Technology Co. Ltd.
+# Developed by Hainan Zhijin Media Co., Ltd.
 
-**由 Hainan Yuandou Technology Co. Ltd. 开发**
+**由 海南之津传媒有限公司（Hainan Zhijin Media Co., Ltd.）开发**
 
 <p align="center">
   <img src="assets/jimeng-resolve-icon.png" alt="Jimeng to Resolve: a continuous film ribbon connecting three sculptural shot frames" width="520">

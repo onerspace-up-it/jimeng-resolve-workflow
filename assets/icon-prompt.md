@@ -6,11 +6,13 @@ The icon follows the existing product handbook's square editorial artwork: warm 
 
 Style references: the handbook artwork for 1-BOOK, Team Todo, and City Atlas. The reference images are not bundled with this repository. The final image is new artwork, not an official Jimeng or DaVinci Resolve logo.
 
-## Final generation prompt
+## Reusable generation prompt
+
+The developer attribution below was updated on 2026-11-17 to reflect the current project branding. The generated artwork is unchanged.
 
 ```text
 Use case: logo-brand.
-Create ONE finished square 1:1 product icon / editorial cover for "Jimeng → Resolve", a resumable AI video-production workflow developed by Hainan Yuandou Technology Co. Ltd.
+Create ONE finished square 1:1 product icon / editorial cover for "Jimeng → Resolve", a resumable AI video-production workflow developed by Hainan Zhijin Media Co., Ltd.
 
 REFERENCE ROLES: The three attached images are STYLE REFERENCES ONLY from the user's existing product handbook. Match their premium tactile sculptural realism, warm ivory paper/stone setting, gentle daylight, restrained material colors, confident large editorial serif product lettering in the bottom band, generous margins and refined craftsmanship. Do not reuse the book, task board or landscape objects or their lettering.
 

@@ -4,7 +4,7 @@
 
 **Keep every shot connected—from the first idea to the editing timeline.**
 
-**Developed by Hainan Yuandou Technology Co. Ltd.**
+**Developed by Hainan Zhijin Media Co., Ltd.**
 
 <img src="../assets/jimeng-resolve-icon.png" alt="Jimeng to Resolve: a continuous film ribbon connecting three sculptural shot frames" width="520">
 
